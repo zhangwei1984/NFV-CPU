@@ -161,11 +161,36 @@ static void configure_output_ports(const struct port_info *ports)
 		rte_exit(EXIT_FAILURE, "Too many ethernet ports. RTE_MAX_ETHPORTS = %u\n",
 				(unsigned)RTE_MAX_ETHPORTS);
 	for (i = 0; i < ports->num_ports - 1; i+=2){
-		uint8_t p1 = ports->id[i];
-		uint8_t p2 = ports->id[i+1];
-		output_ports[p1] = p2;
-		output_ports[p2] = p1;
+		uint8_t p = ports->id[i];
+		output_ports[p] = p;
 	}
+}
+
+static inline void
+drop_packet(struct rte_mbuf *pkt)
+{
+	const uint8_t in_port = pkt->port;
+	const uint8_t out_port = output_ports[in_port];	
+
+	rte_pktmbuf_free(pkt);
+	tx_stats->tx_drop[out_port] += 1;
+} 
+
+static inline void
+drop_packets(uint8_t port)
+{
+        struct mbuf_queue *mbq = &output_bufs[port];
+	int i;
+
+        if (unlikely(mbq->top == 0))
+                return;
+
+	for (i = 0; i < mbq->top; i++) {
+		rte_pktmbuf_free(mbq->bufs[i]);
+		tx_stats->tx_drop[port] += mbq->top;
+
+	}
+        mbq->top = 0;
 }
 
 
@@ -275,14 +300,26 @@ main(int argc, char *argv[])
 
 		if (unlikely(rx_pkts == 0)){
 			if (need_flush)
-				for (port = 0; port < ports->num_ports; port++)
-					send_packets(ports->id[port]);
+				for (port = 0; port < ports->num_ports; port++){
+					if (client_id % 2 == 0) {	
+						send_packets(ports->id[port]);
+					}
+					else {
+						drop_packets(ports->id[port]);
+					}
+				}
 			need_flush = 0;
 			continue;
 		}
 
-		for (i = 0; i < rx_pkts; i++)
-			handle_packet(pkts[i]);
+		for (i = 0; i < rx_pkts; i++) {
+			if (client_id % 2 == 0) {
+				handle_packet(pkts[i]);
+			}
+			else {
+				drop_packet(pkts[i]);
+			}
+		}
 
 		need_flush = 1;
 	}

@@ -73,6 +73,8 @@
 #include "args.h"
 #include "init.h"
 
+#define PERCENT 90
+
 /*
  * When doing reads from the NIC or the client queues,
  * use this batch size
@@ -254,18 +256,34 @@ enqueue_rx_packet(uint8_t client, struct rte_mbuf *buf)
  * individually to the client process. Very simply round-robins the packets
  * without checking any of the packet contents.
  */
+//client 0, 2, 4... receive PERCET packets
 static void
 process_packets(uint32_t port_num __rte_unused,
 		struct rte_mbuf *pkts[], uint16_t rx_count)
 {
 	uint16_t i;
-	uint8_t client = 0;
+	uint8_t client_even = 0;
+	uint8_t client_odd = 1;
+	uint8_t percent;
 
 	for (i = 0; i < rx_count; i++) {
-		enqueue_rx_packet(client, pkts[i]);
-
-		if (++client == num_clients)
-			client = 0;
+		percent = rand() % 100;
+		
+		if (percent < PERCENT) {
+			enqueue_rx_packet(client_even, pkts[i]);
+			client_even += 2;
+			if (client_even >= num_clients) {
+				client_even = 0;
+			}
+			
+		}
+		else {
+			enqueue_rx_packet(client_odd, pkts[i]);
+			client_odd += 2;
+			if (client_odd >= num_clients) {
+				client_odd = 1;
+			}
+		}
 	}
 
 	for (i = 0; i < num_clients; i++)
@@ -302,6 +320,8 @@ do_packet_forwarding(void)
 int
 main(int argc, char *argv[])
 {
+	srand(time(NULL));
+
 	/* initialise the system */
 	if (init(argc, argv) < 0 )
 		return -1;
