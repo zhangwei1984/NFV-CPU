@@ -259,7 +259,9 @@ main(int argc, char *argv[])
 	void *pkts[PKT_READ_SIZE];
 	const char *fifo_name;
 	FILE *fifo_fp;
+	#ifdef INTERRUPT
 	char msg[MAX_MSG];
+	#endif
 
 	if ((retval = rte_eal_init(argc, argv)) < 0)
 		return -1;
@@ -304,11 +306,17 @@ main(int argc, char *argv[])
 	for (;;) {
 		uint16_t i, rx_pkts = PKT_READ_SIZE;
 		uint8_t port;
-
+	
+		#ifdef INTERRUPT
 		fgets(msg, MAX_MSG, fifo_fp);
-		if (strcmp(msg, "wakeup") != 0) {
+		if (strncmp(msg, "wakeup", 6) != 0) {
 			continue;
 		}
+		#endif
+
+		#ifdef DEBUG
+		fprintf(stderr, "receive message: %s", msg);
+		#endif
 
 		/* try dequeuing max possible packets first, if that fails, get the
 		 * most we can. Loop body should only execute once, maximum */

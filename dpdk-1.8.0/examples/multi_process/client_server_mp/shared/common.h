@@ -34,6 +34,9 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
+//#define DEBUG
+#define INTERRUPT
+
 #define MAX_CLIENTS             16
 
 /*

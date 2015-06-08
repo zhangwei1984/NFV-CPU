@@ -74,7 +74,7 @@
 #include "init.h"
 
 #define DISPATCH_PERCENT 90
-#define WAKEUP_THRESHOLD 50
+#define WAKEUP_THRESHOLD 1
 
 /*
  * When doing reads from the NIC or the client queues,
@@ -252,6 +252,7 @@ enqueue_rx_packet(uint8_t client, struct rte_mbuf *buf)
 	cl_rx_buf[client].buffer[cl_rx_buf[client].count++] = buf;
 }
 
+#ifdef INTERRUPT
 static int
 whether_wakeup_client(int client_id)
 {
@@ -261,6 +262,7 @@ whether_wakeup_client(int client_id)
 
 	cur_entries = rte_ring_count(clients[client_id].rx_q);
  	free_entries = rte_ring_free_count(clients[client_id].rx_q);
+
 	percent = cur_entries * 100 / (cur_entries + free_entries);
 	if (percent >= WAKEUP_THRESHOLD) {
 		return 1;
@@ -272,11 +274,12 @@ whether_wakeup_client(int client_id)
 static void
 send_wakeup_message(int client_id)
 {
-	fputs("wakeup", clients[client_id].fifo_fp);	
+	fputs("wakeup\n", clients[client_id].fifo_fp);	
 	#ifdef DEBUG
-	fprintf(stderr, "send wakeup message.\n");
+	fprintf(stderr, "send wakeup message to client %d\n", client_id);
 	#endif
 }
+#endif
 
 /*
  * This function takes a group of packets and routes them
@@ -315,9 +318,11 @@ process_packets(uint32_t port_num __rte_unused,
 
 	for (i = 0; i < num_clients; i++) {
 		flush_rx_queue(i);
+		#ifdef INTERRUPT
 		if(whether_wakeup_client(i) == 1) {
 			send_wakeup_message(i);
 		}
+		#endif
 	}
 }
 
