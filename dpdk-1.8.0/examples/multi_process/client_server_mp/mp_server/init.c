@@ -64,6 +64,9 @@
 #include <rte_fbk_hash.h>
 #include <rte_string_fns.h>
 #include <rte_cycles.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <stdlib.h>
 
 #include "common.h"
 #include "args.h"
@@ -78,7 +81,7 @@
 
 #define RTE_MP_RX_DESC_DEFAULT 512
 #define RTE_MP_TX_DESC_DEFAULT 512
-#define CLIENT_QUEUE_RINGSIZE 128
+#define CLIENT_QUEUE_RINGSIZE 1024
 
 #define NO_FLAGS 0
 
@@ -180,6 +183,7 @@ init_shm_rings(void)
 	unsigned i;
 	unsigned socket_id;
 	const char * q_name;
+	const char * fifo_name;
 	const unsigned ringsize = CLIENT_QUEUE_RINGSIZE;
 
 	clients = rte_malloc("client details",
@@ -194,8 +198,24 @@ init_shm_rings(void)
 		clients[i].rx_q = rte_ring_create(q_name,
 				ringsize, socket_id,
 				RING_F_SP_ENQ | RING_F_SC_DEQ ); /* single prod, single cons */
+		//verify two functions
+		uint16_t ring_cur_entries = rte_ring_count(clients[i].rx_q);
+		uint16_t ring_free_entries = rte_ring_free_count(clients[i].rx_q);
+		fprintf(stderr, "ring_cur_entries=%d, ring_free_entries=%d\n", ring_cur_entries, ring_free_entries);
 		if (clients[i].rx_q == NULL)
 			rte_exit(EXIT_FAILURE, "Cannot create rx ring queue for client %u\n", i);
+
+		//add by wei, create FIFO pipe
+		umask(0);
+		fifo_name = get_fifo_name(i);
+		clients[i].fifo_name = fifo_name;
+        	mknod(fifo_name, S_IFIFO|0666, 0);
+
+		clients[i].fifo_fp = fopen(fifo_name, "w");
+		if(clients[i].fifo_fp == NULL) {
+			fprintf(stderr, "can not create FIFO for client %d\n", i);
+			exit(1);
+		}
 	}
 	return 0;
 }

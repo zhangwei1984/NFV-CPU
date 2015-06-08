@@ -73,7 +73,8 @@
 #include "args.h"
 #include "init.h"
 
-#define PERCENT 90
+#define DISPATCH_PERCENT 90
+#define WAKEUP_THRESHOLD 90
 
 /*
  * When doing reads from the NIC or the client queues,
@@ -251,6 +252,29 @@ enqueue_rx_packet(uint8_t client, struct rte_mbuf *buf)
 	cl_rx_buf[client].buffer[cl_rx_buf[client].count++] = buf;
 }
 
+static int
+whether_wakeup_client(int client_id)
+{
+ 	uint16_t cur_entries;
+	uint16_t free_entries;
+	uint16_t percent;
+
+	cur_entries = rte_ring_count(clients[client_id].rx_q);
+ 	free_entries = rte_ring_free_count(clients[client_id].rx_q);
+	percent = cur_entries * 100 / (cur_entries + free_entries);
+	if (percent >= WAKEUP_THRESHOLD) {
+		return 1;
+	}
+
+	return 0;
+}
+
+static void
+send_wakeup_message(int client_id)
+{
+	fputs("wakeup", clients[client_id].fifo_fp);	
+}
+
 /*
  * This function takes a group of packets and routes them
  * individually to the client process. Very simply round-robins the packets
@@ -269,7 +293,7 @@ process_packets(uint32_t port_num __rte_unused,
 	for (i = 0; i < rx_count; i++) {
 		percent = rand() % 100;
 		
-		if (percent < PERCENT) {
+		if (percent < DISPATCH_PERCENT) {
 			enqueue_rx_packet(client_even, pkts[i]);
 			client_even += 2;
 			if (client_even >= num_clients) {
@@ -288,6 +312,9 @@ process_packets(uint32_t port_num __rte_unused,
 
 	for (i = 0; i < num_clients; i++)
 		flush_rx_queue(i);
+		if(whether_wakeup_client(i) == 1) {
+			send_wakeup_message(i);
+		}
 }
 
 /*

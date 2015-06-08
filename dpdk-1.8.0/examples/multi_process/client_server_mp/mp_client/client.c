@@ -66,6 +66,8 @@
 
 #include "common.h"
 
+#define MAX_MSG 128
+
 /* Number of packets to attempt to read from queue */
 #define PKT_READ_SIZE  ((uint16_t)32)
 
@@ -255,6 +257,9 @@ main(int argc, char *argv[])
 	int need_flush = 0; /* indicates whether we have unsent packets */
 	int retval;
 	void *pkts[PKT_READ_SIZE];
+	const char *fifo_name;
+	FILE *fifo_fp;
+	char msg[MAX_MSG];
 
 	if ((retval = rte_eal_init(argc, argv)) < 0)
 		return -1;
@@ -282,6 +287,14 @@ main(int argc, char *argv[])
 	tx_stats = &(ports->tx_stats[client_id]);
 
 	configure_output_ports(ports);
+	
+	//FIFO pipe for message comminucation between client and server
+	fifo_name = get_fifo_name(client_id);
+	fifo_fp = fopen(fifo_name, "r");
+	if (fifo_fp == NULL) {
+		fprintf(stderr, "can not open FIFO for client %d\n", client_id);
+		exit(1);
+	}
 
 	RTE_LOG(INFO, APP, "Finished Process Init.\n");
 
@@ -291,6 +304,11 @@ main(int argc, char *argv[])
 	for (;;) {
 		uint16_t i, rx_pkts = PKT_READ_SIZE;
 		uint8_t port;
+
+		fgets(msg, MAX_MSG, fifo_fp);
+		if (strcmp(msg, "wakeup") != 0) {
+			continue;
+		}
 
 		/* try dequeuing max possible packets first, if that fails, get the
 		 * most we can. Loop body should only execute once, maximum */
