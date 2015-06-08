@@ -74,7 +74,7 @@
 #include "init.h"
 
 #define DISPATCH_PERCENT 90
-#define WAKEUP_THRESHOLD 90
+#define WAKEUP_THRESHOLD 50
 
 /*
  * When doing reads from the NIC or the client queues,
@@ -186,18 +186,18 @@ do_stats_display(void)
 static int
 sleep_lcore(__attribute__((unused)) void *dummy)
 {
-	/* Used to pick a display thread - static, so zero-initialised */
+	// Used to pick a display thread - static, so zero-initialised 
 	static rte_atomic32_t display_stats;
 
-	/* Only one core should display stats */
+	// Only one core should display stats 
 	if (rte_atomic32_test_and_set(&display_stats)) {
 		const unsigned sleeptime = 1;
 		printf("Core %u displaying statistics\n", rte_lcore_id());
 
-		/* Longer initial pause so above printf is seen */
+		// Longer initial pause so above printf is seen 
 		sleep(sleeptime * 3);
 
-		/* Loop forever: sleep always returns 0 or <= param */
+		// Loop forever: sleep always returns 0 or <= param 
 		while (sleep(sleeptime) <= sleeptime)
 			do_stats_display();
 	}
@@ -273,6 +273,9 @@ static void
 send_wakeup_message(int client_id)
 {
 	fputs("wakeup", clients[client_id].fifo_fp);	
+	#ifdef DEBUG
+	fprintf(stderr, "send wakeup message.\n");
+	#endif
 }
 
 /*
@@ -310,11 +313,12 @@ process_packets(uint32_t port_num __rte_unused,
 		}
 	}
 
-	for (i = 0; i < num_clients; i++)
+	for (i = 0; i < num_clients; i++) {
 		flush_rx_queue(i);
 		if(whether_wakeup_client(i) == 1) {
 			send_wakeup_message(i);
 		}
+	}
 }
 
 /*
