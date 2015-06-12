@@ -257,10 +257,16 @@ main(int argc, char *argv[])
 	int need_flush = 0; /* indicates whether we have unsent packets */
 	int retval;
 	void *pkts[PKT_READ_SIZE];
+	
+	#ifdef INTERRUPT_FIFO
 	const char *fifo_name;
 	FILE *fifo_fp;
-	#ifdef INTERRUPT
 	char msg[MAX_MSG];
+	#endif
+
+	#ifdef INTERRUPT_SEM
+	sem_t *mutex;
+	const char *sem_name;
 	#endif
 
 	if ((retval = rte_eal_init(argc, argv)) < 0)
@@ -289,7 +295,8 @@ main(int argc, char *argv[])
 	tx_stats = &(ports->tx_stats[client_id]);
 
 	configure_output_ports(ports);
-	
+
+	#ifdef INTERRUPT_FIFO	
 	//FIFO pipe for message comminucation between client and server
 	fifo_name = get_fifo_name(client_id);
 	fifo_fp = fopen(fifo_name, "r");
@@ -297,6 +304,19 @@ main(int argc, char *argv[])
 		fprintf(stderr, "can not open FIFO for client %d\n", client_id);
 		exit(1);
 	}
+	#endif
+
+	#ifdef INTERRUPT_SEM
+	sem_name = get_sem_name(client_id);
+	fprintf(stderr, "sem_name=%s for client %d\n", sem_name, client_id);
+	mutex = sem_open(sem_name, 0, 0666, 0);
+	if (mutex == SEM_FAILED) {
+		perror("Unable to execute semaphore");
+		fprintf(stderr, "unable to execute semphore for client %d\n", client_id);
+		sem_close(mutex);
+		exit(1);
+	}
+	#endif
 
 	RTE_LOG(INFO, APP, "Finished Process Init.\n");
 
@@ -306,16 +326,26 @@ main(int argc, char *argv[])
 	for (;;) {
 		uint16_t i, rx_pkts = PKT_READ_SIZE;
 		uint8_t port;
-	
-		#ifdef INTERRUPT
+
+		#ifdef INTERRUPT_FIFO
+		memset(msg, 0, sizeof(msg));
 		fgets(msg, MAX_MSG, fifo_fp);
+
+		#ifdef DEBUG
+		fprintf(stderr, "receive message: %s", msg);
+		#endif
+
 		if (strncmp(msg, "wakeup", 6) != 0) {
 			continue;
 		}
 		#endif
 
+		#ifdef INTERRUPT_SEM
+		sem_wait(mutex);
 		#ifdef DEBUG
-		fprintf(stderr, "receive message: %s", msg);
+		fprintf(stderr, "client is woken up%d\n", client_id);	
+		#endif
+		sem_post(mutex);
 		#endif
 
 		/* try dequeuing max possible packets first, if that fails, get the

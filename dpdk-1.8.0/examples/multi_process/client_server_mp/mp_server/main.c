@@ -42,6 +42,7 @@
 #include <sys/queue.h>
 #include <errno.h>
 #include <netinet/ip.h>
+#include <signal.h>
 
 #include <rte_common.h>
 #include <rte_memory.h>
@@ -72,6 +73,10 @@
 #include "common.h"
 #include "args.h"
 #include "init.h"
+
+#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+void signal_handler(int sig, siginfo_t *info, void *secret);
+#endif
 
 #define DISPATCH_PERCENT 90
 #define WAKEUP_THRESHOLD 1
@@ -252,7 +257,7 @@ enqueue_rx_packet(uint8_t client, struct rte_mbuf *buf)
 	cl_rx_buf[client].buffer[cl_rx_buf[client].count++] = buf;
 }
 
-#ifdef INTERRUPT
+#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
 static int
 whether_wakeup_client(int client_id)
 {
@@ -271,15 +276,46 @@ whether_wakeup_client(int client_id)
 	return 0;
 }
 
+void signal_handler(int sig, siginfo_t *info, void *secret)
+{
+	int i;
+	(void)info;
+	(void)secret;
+ 
+	//2 means terminal interrupt, 3 means terminal quit, 9 means kill and 15 means termination
+	if (sig <= 15) {
+
+		#ifdef INTERRUPT_FIFO
+		for (i = 0; i < num_clients; i++) {
+			fclose(clients[i].fifo_fp);
+		}
+		#endif
+
+		#ifdef INTERRUPT_SEM
+		for (i = 0; i < num_clients; i++) {
+			sem_close(clients[i].mutex);
+			sem_unlink(clients[i].sem_name);
+		}	
+		#endif
+	}
+	
+	exit(1);
+}
+
+#endif
+
+#ifdef INTERRUPT_FIFO
 static void
 send_wakeup_message(int client_id)
 {
 	fputs("wakeup\n", clients[client_id].fifo_fp);	
+	fflush(clients[client_id].fifo_fp);
 	#ifdef DEBUG
 	fprintf(stderr, "send wakeup message to client %d\n", client_id);
 	#endif
 }
 #endif
+
 
 /*
  * This function takes a group of packets and routes them
@@ -318,9 +354,29 @@ process_packets(uint32_t port_num __rte_unused,
 
 	for (i = 0; i < num_clients; i++) {
 		flush_rx_queue(i);
-		#ifdef INTERRUPT
+		#ifdef INTERRUPT_FIFO
 		if(whether_wakeup_client(i) == 1) {
 			send_wakeup_message(i);
+		}
+		#endif
+
+		#ifdef INTERRUPT_SEM
+		if (whether_wakeup_client(i) == 0) {
+			//server holds, client waits
+			if(clients[i].already_get == 0) {
+				sem_wait(clients[i].mutex);
+				clients[i].already_get = 1;
+			}
+		}
+		else {
+			//server releases, client is worken up
+			if (clients[i].already_get == 1) {
+				sem_post(clients[i].mutex);	
+				clients[i].already_get = 0;
+			}
+			#ifdef DEBUG
+			fprintf(stderr, "wake up client %d\n", i);
+			#endif
 		}
 		#endif
 	}
@@ -357,6 +413,19 @@ int
 main(int argc, char *argv[])
 {
 	srand(time(NULL));
+	struct sigaction act;
+
+	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM) 
+	int i;
+	memset(&act, 0, sizeof(act));	
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = SA_SIGINFO;
+	act.sa_handler = (void *)signal_handler;
+
+	for (i = 1; i < 31; i++) {
+		sigaction(i, &act, 0);
+	}
+	#endif
 
 	/* initialise the system */
 	if (init(argc, argv) < 0 )

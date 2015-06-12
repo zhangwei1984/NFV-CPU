@@ -34,6 +34,7 @@
 #ifndef _INIT_H_
 #define _INIT_H_
 
+#include "common.h"
 /*
  * #include <rte_ring.h>
  * #include "args.h"
@@ -55,9 +56,18 @@ struct client {
 		volatile uint64_t rx;
 		volatile uint64_t rx_drop;
 	} stats;
+
+	#ifdef INTERRUPT_FIFO
 	//FIFO name, which uses to comminute wakeup message between client and server
 	const char *fifo_name;
 	FILE *fifo_fp;
+	#endif
+
+	#ifdef INTERRUPT_SEM
+	const char *sem_name;
+	sem_t *mutex;
+	uint16_t already_get;
+	#endif
 	
 };
 

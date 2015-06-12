@@ -34,8 +34,7 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
-//#define DEBUG
-#define INTERRUPT
+#include "shared.h"
 
 #define MAX_CLIENTS             16
 
@@ -71,7 +70,13 @@ struct port_info {
 #define PKTMBUF_POOL_NAME "MProc_pktmbuf_pool"
 #define MZ_PORT_INFO "MProc_port_info"
 //add by wei
+#ifdef INTERRUPT_FIFO
 #define MP_CLIENT_FIFO_NAME "MProc_Client_%u_FIFO"
+#endif
+
+#ifdef INTERRUPT_SEM
+#define MP_CLIENT_SEM_NAME "MProc_Client_%u_SEM"
+#endif
 
 /*
  * Given the rx queue name template above, get the queue name
@@ -87,8 +92,9 @@ get_rx_queue_name(unsigned id)
 	return buffer;
 }
 
+#ifdef INTERRUPT_FIFO
 /*
- * Given the rx queue name template above, get the queue name
+ * Given the fifo name template above, get the fifo name
  */
 static inline const char *
 get_fifo_name(unsigned id)
@@ -100,6 +106,24 @@ get_fifo_name(unsigned id)
         snprintf(buffer, sizeof(buffer) - 1, MP_CLIENT_FIFO_NAME, id);
         return buffer;
 }
+#endif
+
+#ifdef INTERRUPT_SEM
+/*
+ * Given the sem name template above, get the sem name
+ */
+static inline const char *
+get_sem_name(unsigned id)
+{
+        /* buffer for return value. Size calculated by %u being replaced
+         * by maximum 3 digits (plus an extra byte for safety) */
+        static char buffer[sizeof(MP_CLIENT_SEM_NAME) + 2];
+
+        snprintf(buffer, sizeof(buffer) - 1, MP_CLIENT_SEM_NAME, id);
+        return buffer;
+}
+#endif
+
 
 #define RTE_LOGTYPE_APP RTE_LOGTYPE_USER1
 

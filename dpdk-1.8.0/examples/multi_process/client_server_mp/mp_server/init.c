@@ -81,7 +81,7 @@
 
 #define RTE_MP_RX_DESC_DEFAULT 512
 #define RTE_MP_TX_DESC_DEFAULT 512
-#define CLIENT_QUEUE_RINGSIZE 1024
+#define CLIENT_QUEUE_RINGSIZE 128
 
 #define NO_FLAGS 0
 
@@ -183,7 +183,15 @@ init_shm_rings(void)
 	unsigned i;
 	unsigned socket_id;
 	const char * q_name;
+
+	#ifdef INTERRUPT_FIFO
 	const char * fifo_name;
+	#endif
+	
+	#ifdef INTERRUPT_SEM
+	const char * sem_name;
+	sem_t *mutex;
+	#endif
 	const unsigned ringsize = CLIENT_QUEUE_RINGSIZE;
 
 	clients = rte_malloc("client details",
@@ -206,6 +214,7 @@ init_shm_rings(void)
 			rte_exit(EXIT_FAILURE, "Cannot create rx ring queue for client %u\n", i);
 
 		//add by wei, create FIFO pipe
+		#ifdef INTERRUPT_FIFO
 		umask(0);
 		fifo_name = get_fifo_name(i);
 		clients[i].fifo_name = fifo_name;
@@ -216,6 +225,23 @@ init_shm_rings(void)
 			fprintf(stderr, "can not create FIFO for client %d\n", i);
 			exit(1);
 		}
+		#endif
+
+		#ifdef INTERRUPT_SEM
+		sem_name = get_sem_name(i);
+		clients[i].sem_name = sem_name;	
+
+		fprintf(stderr, "sem_name=%s for client %d\n", sem_name, i);
+		mutex = sem_open(sem_name, O_CREAT, 06666, 1);
+		if(mutex == SEM_FAILED) {
+			fprintf(stderr, "can not create semaphore for client %d\n", i);
+			sem_unlink(sem_name);
+			exit(1);
+		}
+		clients[i].mutex = mutex;	
+		sem_wait(mutex);
+		clients[i].already_get = 1;
+		#endif
 	}
 	return 0;
 }
