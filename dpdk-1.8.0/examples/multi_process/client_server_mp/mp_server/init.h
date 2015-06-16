@@ -66,7 +66,6 @@ struct client {
 	#ifdef INTERRUPT_SEM
 	const char *sem_name;
 	sem_t *mutex;
-	uint16_t already_get;
 	#endif
 	
 };

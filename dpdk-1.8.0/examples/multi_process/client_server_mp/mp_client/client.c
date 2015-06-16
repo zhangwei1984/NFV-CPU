@@ -345,7 +345,6 @@ main(int argc, char *argv[])
 		#ifdef DEBUG
 		fprintf(stderr, "client is woken up%d\n", client_id);	
 		#endif
-		sem_post(mutex);
 		#endif
 
 		/* try dequeuing max possible packets first, if that fails, get the

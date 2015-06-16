@@ -355,28 +355,15 @@ process_packets(uint32_t port_num __rte_unused,
 	for (i = 0; i < num_clients; i++) {
 		flush_rx_queue(i);
 		#ifdef INTERRUPT_FIFO
-		if(whether_wakeup_client(i) == 1) {
+		if (whether_wakeup_client(i) == 1) {
 			send_wakeup_message(i);
 		}
 		#endif
 
 		#ifdef INTERRUPT_SEM
-		if (whether_wakeup_client(i) == 0) {
+		if (whether_wakeup_client(i) == 1) {
 			//server holds, client waits
-			if(clients[i].already_get == 0) {
-				sem_wait(clients[i].mutex);
-				clients[i].already_get = 1;
-			}
-		}
-		else {
-			//server releases, client is worken up
-			if (clients[i].already_get == 1) {
-				sem_post(clients[i].mutex);	
-				clients[i].already_get = 0;
-			}
-			#ifdef DEBUG
-			fprintf(stderr, "wake up client %d\n", i);
-			#endif
+			sem_post(clients[i].mutex);	
 		}
 		#endif
 	}

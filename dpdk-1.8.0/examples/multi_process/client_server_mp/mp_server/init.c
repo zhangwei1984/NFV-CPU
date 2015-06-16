@@ -232,15 +232,13 @@ init_shm_rings(void)
 		clients[i].sem_name = sem_name;	
 
 		fprintf(stderr, "sem_name=%s for client %d\n", sem_name, i);
-		mutex = sem_open(sem_name, O_CREAT, 06666, 1);
+		mutex = sem_open(sem_name, O_CREAT, 06666, 0);
 		if(mutex == SEM_FAILED) {
 			fprintf(stderr, "can not create semaphore for client %d\n", i);
 			sem_unlink(sem_name);
 			exit(1);
 		}
 		clients[i].mutex = mutex;	
-		sem_wait(mutex);
-		clients[i].already_get = 1;
 		#endif
 	}
 	return 0;
