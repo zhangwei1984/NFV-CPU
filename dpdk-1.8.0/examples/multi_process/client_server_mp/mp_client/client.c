@@ -378,35 +378,37 @@ main(int argc, char *argv[])
 		*flag_p = 0;
 		#endif
 
+		while (1){
 		/* try dequeuing max possible packets first, if that fails, get the
 		 * most we can. Loop body should only execute once, maximum */
-		while (rx_pkts > 0 &&
-				unlikely(rte_ring_dequeue_bulk(rx_ring, pkts, rx_pkts) != 0))
-			rx_pkts = (uint16_t)RTE_MIN(rte_ring_count(rx_ring), PKT_READ_SIZE);
+			while (rx_pkts > 0 &&
+					unlikely(rte_ring_dequeue_bulk(rx_ring, pkts, rx_pkts) != 0))
+				rx_pkts = (uint16_t)RTE_MIN(rte_ring_count(rx_ring), PKT_READ_SIZE);
+				
+			if (unlikely(rx_pkts == 0)){
+				if (need_flush)
+					for (port = 0; port < ports->num_ports; port++){
+						if (client_id % 2 == 0) {	
+							send_packets(ports->id[port]);
+						}
+						else {
+							drop_packets(ports->id[port]);
+						}
+					}
+				need_flush = 0;
+				break;
+			}
 
-		if (unlikely(rx_pkts == 0)){
-			if (need_flush)
-				for (port = 0; port < ports->num_ports; port++){
-					if (client_id % 2 == 0) {	
-						send_packets(ports->id[port]);
-					}
-					else {
-						drop_packets(ports->id[port]);
-					}
+			for (i = 0; i < rx_pkts; i++) {
+				if (client_id % 2 == 0) {
+					handle_packet(pkts[i]);
 				}
-			need_flush = 0;
-			continue;
-		}
-
-		for (i = 0; i < rx_pkts; i++) {
-			if (client_id % 2 == 0) {
-				handle_packet(pkts[i]);
+				else {
+					drop_packet(pkts[i]);
+				}
 			}
-			else {
-				drop_packet(pkts[i]);
-			}
-		}
 
-		need_flush = 1;
+			need_flush = 1;
+		}
 	}
 }
