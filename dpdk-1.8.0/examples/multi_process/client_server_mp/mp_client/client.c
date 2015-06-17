@@ -347,7 +347,7 @@ main(int argc, char *argv[])
 	printf("[Press Ctrl-C to quit ...]\n");
 
 	for (;;) {
-		uint16_t i, rx_pkts = PKT_READ_SIZE;
+		uint16_t i;
 		uint8_t port;
 		
 		#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
@@ -379,6 +379,7 @@ main(int argc, char *argv[])
 		#endif
 
 		while (1){
+			uint16_t rx_pkts = PKT_READ_SIZE;
 		/* try dequeuing max possible packets first, if that fails, get the
 		 * most we can. Loop body should only execute once, maximum */
 			while (rx_pkts > 0 &&
