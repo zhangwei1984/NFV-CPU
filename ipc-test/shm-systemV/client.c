@@ -1,0 +1,58 @@
+/*
+ * shm-client - client program to demonstrate shared memory.
+ */
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+
+#define SHMSZ     4
+#define PREFIX 123
+
+main()
+{
+    int shmid;
+    key_t key;
+    char *shm;
+    int  *s;
+
+    /*
+     * We need to get the segment named
+     * "5678", created by the server.
+     */
+    key = PREFIX * 10 + 1;
+
+    /*
+     * Locate the segment.
+     */
+    if ((shmid = shmget(key, SHMSZ, 0666)) < 0) {
+        perror("shmget");
+        exit(1);
+    }
+
+    /*
+     * Now we attach the segment to our data space.
+     */
+    if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    /*
+     * Now read what the server put in the memory.
+     */
+     s = (int *)shm;
+    /*
+     * Finally, change the first character of the 
+     * segment to '*', indicating we have read 
+     * the segment.
+     */
+    printf("read value in shared memory is %d\n", *s);
+    *s = 200;
+    printf("update value in shared memory is %d\n", *s);
+
+    exit(0);
+}
