@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/shm.h>
+#include <stdio.h>
 
 //#define DEBUG
 //#define INTERRUPT_FIFO

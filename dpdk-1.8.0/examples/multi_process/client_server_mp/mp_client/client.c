@@ -269,6 +269,13 @@ main(int argc, char *argv[])
 	const char *sem_name;
 	#endif
 
+	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+	int shmid;
+    	key_t key;
+    	char *shm;
+	int *flag_p;	
+	#endif
+
 	if ((retval = rte_eal_init(argc, argv)) < 0)
 		return -1;
 	argc -= retval;
@@ -318,6 +325,22 @@ main(int argc, char *argv[])
 	}
 	#endif
 
+	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+	key = get_rx_shmkey(client_id);
+	if ((shmid = shmget(key, SHMSZ, 0666)) < 0) {
+        	perror("shmget");
+		fprintf(stderr, "unable to Locate the segment for client %d\n", client_id);
+        	exit(1);
+   	}
+
+	if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) {
+        	fprintf(stderr, "can not attach the shared segment to the client space for client %d\n", client_id);
+                exit(1);
+        }
+
+	flag_p = (int *)shm;
+	#endif
+
 	RTE_LOG(INFO, APP, "Finished Process Init.\n");
 
 	printf("\nClient process %d handling packets\n", client_id);
@@ -326,6 +349,10 @@ main(int argc, char *argv[])
 	for (;;) {
 		uint16_t i, rx_pkts = PKT_READ_SIZE;
 		uint8_t port;
+		
+		#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+		*flag_p = 1;
+		#endif
 
 		#ifdef INTERRUPT_FIFO
 		memset(msg, 0, sizeof(msg));
@@ -345,6 +372,10 @@ main(int argc, char *argv[])
 		#ifdef DEBUG
 		fprintf(stderr, "client is woken up%d\n", client_id);	
 		#endif
+		#endif
+
+		#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+		*flag_p = 0;
 		#endif
 
 		/* try dequeuing max possible packets first, if that fails, get the

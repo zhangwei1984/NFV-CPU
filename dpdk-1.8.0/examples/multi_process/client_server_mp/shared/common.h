@@ -78,6 +78,19 @@ struct port_info {
 #define MP_CLIENT_SEM_NAME "MProc_Client_%u_SEM"
 #endif
 
+#define SHMSZ 4
+#define KEY_PREFIX 123
+
+/*
+ * Given the rx queue name template above, get the key of the shared memory
+ */
+static inline key_t
+get_rx_shmkey(unsigned id)
+{
+        return KEY_PREFIX * 10 + id;
+}
+
+
 /*
  * Given the rx queue name template above, get the queue name
  */

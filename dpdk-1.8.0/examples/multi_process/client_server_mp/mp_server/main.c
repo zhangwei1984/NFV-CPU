@@ -356,14 +356,18 @@ process_packets(uint32_t port_num __rte_unused,
 		flush_rx_queue(i);
 		#ifdef INTERRUPT_FIFO
 		if (whether_wakeup_client(i) == 1) {
-			send_wakeup_message(i);
+			if ((*(clients[i].shm_server)) == 1) {
+				send_wakeup_message(i);
+			}
 		}
 		#endif
 
 		#ifdef INTERRUPT_SEM
 		if (whether_wakeup_client(i) == 1) {
-			//server holds, client waits
-			sem_post(clients[i].mutex);	
+			//server wakes up client
+			if ((*(clients[i].shm_server)) == 1) {
+				sem_post(clients[i].mutex);	
+                        }
 		}
 		#endif
 	}

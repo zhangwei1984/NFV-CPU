@@ -81,7 +81,7 @@
 
 #define RTE_MP_RX_DESC_DEFAULT 512
 #define RTE_MP_TX_DESC_DEFAULT 512
-#define CLIENT_QUEUE_RINGSIZE 128
+#define CLIENT_QUEUE_RINGSIZE 1024
 
 #define NO_FLAGS 0
 
@@ -192,6 +192,13 @@ init_shm_rings(void)
 	const char * sem_name;
 	sem_t *mutex;
 	#endif
+
+	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+	key_t key;
+	int shmid;
+	char *shm;
+	#endif
+
 	const unsigned ringsize = CLIENT_QUEUE_RINGSIZE;
 
 	clients = rte_malloc("client details",
@@ -239,6 +246,21 @@ init_shm_rings(void)
 			exit(1);
 		}
 		clients[i].mutex = mutex;	
+		#endif
+
+		#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+		key = get_rx_shmkey(i);	
+		if ((shmid = shmget(key, SHMSZ, IPC_CREAT | 0666)) < 0) {
+        		fprintf(stderr, "can not create the shared memory segment for client %d\n", i);
+        		exit(1);
+                }
+		
+		if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) {
+        		fprintf(stderr, "can not attach the shared segment to the server space for client %d\n", i);
+       			exit(1);
+    		}
+
+		clients[i].shm_server = (int *)shm;
 		#endif
 	}
 	return 0;

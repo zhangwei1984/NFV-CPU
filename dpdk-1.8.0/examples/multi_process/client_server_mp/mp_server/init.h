@@ -68,6 +68,9 @@ struct client {
 	sem_t *mutex;
 	#endif
 	
+	key_t shm_key;
+	int *shm_server;
+	int *shm_client;
 };
 
 extern struct client *clients;
