@@ -162,7 +162,7 @@ static void configure_output_ports(const struct port_info *ports)
 	if (ports->num_ports > RTE_MAX_ETHPORTS)
 		rte_exit(EXIT_FAILURE, "Too many ethernet ports. RTE_MAX_ETHPORTS = %u\n",
 				(unsigned)RTE_MAX_ETHPORTS);
-	for (i = 0; i < ports->num_ports - 1; i+=2){
+	for (i = 0; i < ports->num_ports; i+=1){
 		uint8_t p = ports->id[i];
 		output_ports[p] = p;
 	}
