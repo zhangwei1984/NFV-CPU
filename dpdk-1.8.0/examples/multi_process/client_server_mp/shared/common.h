@@ -81,6 +81,23 @@ struct port_info {
 #define SHMSZ 4
 #define KEY_PREFIX 123
 
+#define MP_CLIENT_IRQ_FLAG_NAME "MProc_Client_%u_IRQ_FLAG"
+
+/*
+ * Given the irq flag name template above, get the flag name
+ */
+static inline const char *
+get_irq_flag_name(unsigned id)
+{
+        /* buffer for return value. Size calculated by %u being replaced
+         * by maximum 3 digits (plus an extra byte for safety) */
+        static char buffer[sizeof(MP_CLIENT_IRQ_FLAG_NAME) + 2];
+
+        snprintf(buffer, sizeof(buffer) - 1, MP_CLIENT_IRQ_FLAG_NAME, id);
+        return buffer;
+}
+
+
 /*
  * Given the rx queue name template above, get the key of the shared memory
  */

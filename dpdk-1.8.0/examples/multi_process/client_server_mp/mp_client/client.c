@@ -270,10 +270,14 @@ main(int argc, char *argv[])
 	#endif
 
 	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+	#ifdef DPDK_FLAG
+	int *irq_flag; 
+	#else
 	int shmid;
     	key_t key;
     	char *shm;
 	int *flag_p;	
+	#endif
 	#endif
 
 	if ((retval = rte_eal_init(argc, argv)) < 0)
@@ -326,6 +330,11 @@ main(int argc, char *argv[])
 	#endif
 
 	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+	#ifdef DPDK_FLAG
+	irq_flag = (int *)rte_ring_lookup(get_irq_flag_name(client_id));
+        if (irq_flag == NULL)
+                rte_exit(EXIT_FAILURE, "Cannot get irq flag - is server process running?\n");	
+	#else
 	key = get_rx_shmkey(client_id);
 	if ((shmid = shmget(key, SHMSZ, 0666)) < 0) {
         	perror("shmget");
@@ -340,6 +349,7 @@ main(int argc, char *argv[])
 
 	flag_p = (int *)shm;
 	#endif
+	#endif
 
 	RTE_LOG(INFO, APP, "Finished Process Init.\n");
 
@@ -351,7 +361,11 @@ main(int argc, char *argv[])
 		uint8_t port;
 		
 		#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+		#ifdef DPDK_FLAG
+		*irq_flag = 1;
+		#else
 		*flag_p = 1;
+		#endif
 		#endif
 
 		#ifdef INTERRUPT_FIFO
@@ -362,9 +376,9 @@ main(int argc, char *argv[])
 		fprintf(stderr, "receive message: %s", msg);
 		#endif
 
-		if (strncmp(msg, "wakeup", 6) != 0) {
+		/*if (strncmp(msg, "wakeup", 6) != 0) {
 			continue;
-		}
+		}*/
 		#endif
 
 		#ifdef INTERRUPT_SEM
@@ -375,7 +389,11 @@ main(int argc, char *argv[])
 		#endif
 
 		#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
-		*flag_p = 0;
+		#ifdef DPDK_FLAG
+                *irq_flag = 0;
+                #else
+                *flag_p = 0;
+                #endif
 		#endif
 
 		while (1){

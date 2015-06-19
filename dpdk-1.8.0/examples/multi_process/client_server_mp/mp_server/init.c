@@ -194,12 +194,19 @@ init_shm_rings(void)
 	#endif
 
 	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+
+	#ifdef DPDK_FLAG
+	const char *irq_flag_name;
+	#else	
 	key_t key;
 	int shmid;
 	char *shm;
 	#endif
 
+	#endif
+
 	const unsigned ringsize = CLIENT_QUEUE_RINGSIZE;
+	const unsigned flagsize = 4;
 
 	clients = rte_malloc("client details",
 		sizeof(*clients) * num_clients, 0);
@@ -249,6 +256,13 @@ init_shm_rings(void)
 		#endif
 
 		#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM)
+
+		#ifdef DPDK_FLAG
+		irq_flag_name = get_irq_flag_name(i);
+                clients[i].irq_flag = (int *)rte_ring_create(irq_flag_name,
+                                flagsize, socket_id,
+                                RING_F_SP_ENQ | RING_F_SC_DEQ ); /* single prod, single cons */
+		#else
 		key = get_rx_shmkey(i);	
 		if ((shmid = shmget(key, SHMSZ, IPC_CREAT | 0666)) < 0) {
         		fprintf(stderr, "can not create the shared memory segment for client %d\n", i);
@@ -261,6 +275,8 @@ init_shm_rings(void)
     		}
 
 		clients[i].shm_server = (int *)shm;
+		#endif
+
 		#endif
 	}
 	return 0;

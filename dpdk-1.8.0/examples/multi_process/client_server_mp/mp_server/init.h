@@ -71,6 +71,8 @@ struct client {
 	key_t shm_key;
 	int *shm_server;
 	int *shm_client;
+
+	const int *irq_flag;
 };
 
 extern struct client *clients;

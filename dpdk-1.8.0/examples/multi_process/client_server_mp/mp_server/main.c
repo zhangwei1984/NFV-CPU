@@ -78,7 +78,7 @@
 void signal_handler(int sig, siginfo_t *info, void *secret);
 #endif
 
-#define DISPATCH_PERCENT 90
+#define DISPATCH_PERCENT 50
 #define WAKEUP_THRESHOLD 1
 
 /*
@@ -356,18 +356,30 @@ process_packets(uint32_t port_num __rte_unused,
 		flush_rx_queue(i);
 		#ifdef INTERRUPT_FIFO
 		if (whether_wakeup_client(i) == 1) {
+			#ifdef DPDK_FLAG
+			if ((*(clients[i].irq_flag)) == 1) {
+                                send_wakeup_message(i);
+                        }
+			#else
 			if ((*(clients[i].shm_server)) == 1) {
 				send_wakeup_message(i);
 			}
+			#endif
 		}
 		#endif
 
 		#ifdef INTERRUPT_SEM
 		if (whether_wakeup_client(i) == 1) {
+			#ifdef DPDK_FLAG
+                        if ((*(clients[i].irq_flag)) == 1) {
+                                send_wakeup_message(i);
+                        }
+                        #else
 			//server wakes up client
 			if ((*(clients[i].shm_server)) == 1) {
 				sem_post(clients[i].mutex);	
                         }
+			#endif
 		}
 		#endif
 	}
