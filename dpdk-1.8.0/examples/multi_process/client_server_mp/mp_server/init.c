@@ -81,7 +81,8 @@
 
 #define RTE_MP_RX_DESC_DEFAULT 512
 #define RTE_MP_TX_DESC_DEFAULT 512
-#define CLIENT_QUEUE_RINGSIZE 1024
+//#define CLIENT_QUEUE_RINGSIZE 65536
+#define CLIENT_QUEUE_RINGSIZE 1048576
 
 #define NO_FLAGS 0
 
@@ -197,6 +198,7 @@ init_shm_rings(void)
 
 	#ifdef DPDK_FLAG
 	const char *irq_flag_name;
+	const unsigned flagsize = 4;
 	#else	
 	key_t key;
 	int shmid;
@@ -206,7 +208,6 @@ init_shm_rings(void)
 	#endif
 
 	const unsigned ringsize = CLIENT_QUEUE_RINGSIZE;
-	const unsigned flagsize = 4;
 
 	clients = rte_malloc("client details",
 		sizeof(*clients) * num_clients, 0);

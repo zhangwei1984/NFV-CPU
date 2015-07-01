@@ -63,6 +63,7 @@
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 #include <rte_string_fns.h>
+#include <rte_cycles.h>
 
 #include "common.h"
 
@@ -90,6 +91,46 @@ static struct mbuf_queue output_bufs[RTE_MAX_ETHPORTS];
 /* shared data from server. We update statistics here */
 static volatile struct tx_stats *tx_stats;
 
+static volatile uint64_t pkt_count = 0;
+static volatile uint64_t msg_count = 0;
+
+#ifdef CLIENT_STAT
+#define TIMER_SECOND 1600000000ULL
+#define SLEEP_TIME 1
+static uint64_t  timer_period = SLEEP_TIME * TIMER_SECOND; 
+
+static int
+stat_print(__attribute__((unused)) void *dummy) 
+{
+	uint64_t prev_tsc, cur_tsc;
+	prev_tsc = rte_rdtsc();
+	uint64_t prev_pkt_count = pkt_count;
+	uint64_t prev_msg_count = msg_count;
+	double period_time;
+	uint64_t pkt_rate, msg_rate;
+	
+
+	while (1) {
+		sleep(SLEEP_TIME);	
+
+		cur_tsc = rte_rdtsc();
+		if (cur_tsc - prev_tsc >= timer_period){	
+			period_time = (cur_tsc - prev_tsc) / (double)TIMER_SECOND; 
+			pkt_rate = (pkt_count - prev_pkt_count) / period_time;
+			msg_rate = (msg_count - prev_msg_count) / period_time;
+			printf("pkt_count=%"PRIu64", prev_pkt_count=%"PRIu64", msg_count=%"PRIu64", prev_msg_count=%"PRIu64"\n", 
+				pkt_count, prev_pkt_count, msg_count, prev_msg_count);
+			printf("pkt_rate=%"PRIu64", msg_rate=%"PRIu64", period_time=%f\n", pkt_rate, msg_rate, period_time);
+			prev_tsc = cur_tsc;	
+			prev_pkt_count = pkt_count;
+			prev_msg_count = msg_count;
+
+		}
+	}
+	return 0;
+
+}
+#endif
 
 /*
  * print a usage message
@@ -351,7 +392,15 @@ main(int argc, char *argv[])
 	#endif
 	#endif
 
+
 	RTE_LOG(INFO, APP, "Finished Process Init.\n");
+
+	#ifdef CLIENT_STAT
+	unsigned cur_lcore = rte_lcore_id();
+	unsigned next_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+	printf("cur_lcore=%u, next_lcore=%u\n", cur_lcore, next_lcore);
+	rte_eal_remote_launch(stat_print, NULL, next_lcore);
+	#endif
 
 	printf("\nClient process %d handling packets\n", client_id);
 	printf("[Press Ctrl-C to quit ...]\n");
@@ -369,20 +418,31 @@ main(int argc, char *argv[])
 		#endif
 
 		#ifdef INTERRUPT_FIFO
+		char* ret;
 		memset(msg, 0, sizeof(msg));
-		fgets(msg, MAX_MSG, fifo_fp);
+		ret = fgets(msg, MAX_MSG, fifo_fp);
+	
+		if (ret == NULL) {
+			exit(1);
+		}
+	
+		msg_count++;
 
 		#ifdef DEBUG
 		fprintf(stderr, "receive message: %s", msg);
 		#endif
 
-		/*if (strncmp(msg, "wakeup", 6) != 0) {
+		#if 0
+		if (strncmp(msg, "wakeup", 6) != 0) {
 			continue;
-		}*/
+		}
+		#endif
+
 		#endif
 
 		#ifdef INTERRUPT_SEM
 		sem_wait(mutex);
+		msg_count++;
 		#ifdef DEBUG
 		fprintf(stderr, "client is woken up%d\n", client_id);	
 		#endif
@@ -403,6 +463,8 @@ main(int argc, char *argv[])
 			while (rx_pkts > 0 &&
 					unlikely(rte_ring_dequeue_bulk(rx_ring, pkts, rx_pkts) != 0))
 				rx_pkts = (uint16_t)RTE_MIN(rte_ring_count(rx_ring), PKT_READ_SIZE);
+		
+			pkt_count += rx_pkts;
 				
 			if (unlikely(rx_pkts == 0)){
 				if (need_flush)

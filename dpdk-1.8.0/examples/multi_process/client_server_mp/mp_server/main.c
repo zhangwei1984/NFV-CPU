@@ -78,8 +78,9 @@
 void signal_handler(int sig, siginfo_t *info, void *secret);
 #endif
 
-#define DISPATCH_PERCENT 50
+#define DISPATCH_PERCENT 100
 #define WAKEUP_THRESHOLD 1
+//#define WAKEUP_PERCENT	
 
 /*
  * When doing reads from the NIC or the client queues,
@@ -262,17 +263,24 @@ static int
 whether_wakeup_client(int client_id)
 {
  	uint16_t cur_entries;
+	#ifdef WAKEUP_PERCENT
 	uint16_t free_entries;
 	uint16_t percent;
 
-	cur_entries = rte_ring_count(clients[client_id].rx_q);
  	free_entries = rte_ring_free_count(clients[client_id].rx_q);
+	#endif
+	cur_entries = rte_ring_count(clients[client_id].rx_q);
 
+	#ifdef WAKEUP_PERCENT
 	percent = cur_entries * 100 / (cur_entries + free_entries);
 	if (percent >= WAKEUP_THRESHOLD) {
 		return 1;
 	}
-
+	#else
+	if (cur_entries >= WAKEUP_THRESHOLD){
+		return 1;
+	}
+	#endif
 	return 0;
 }
 
@@ -334,7 +342,7 @@ process_packets(uint32_t port_num __rte_unused,
 
 	for (i = 0; i < rx_count; i++) {
 		percent = rand() % 100;
-		
+	
 		if (percent < DISPATCH_PERCENT) {
 			enqueue_rx_packet(client_even, pkts[i]);
 			client_even += 2;
@@ -344,6 +352,7 @@ process_packets(uint32_t port_num __rte_unused,
 			
 		}
 		else {
+			//if only have one client, PERCENT must be 100%. Or else here will be a bug
 			enqueue_rx_packet(client_odd, pkts[i]);
 			client_odd += 2;
 			if (client_odd >= num_clients) {
@@ -416,9 +425,9 @@ int
 main(int argc, char *argv[])
 {
 	srand(time(NULL));
-	struct sigaction act;
 
 	#if defined(INTERRUPT_FIFO) || defined(INTERRUPT_SEM) 
+	struct sigaction act;
 	int i;
 	memset(&act, 0, sizeof(act));	
 	sigemptyset(&act.sa_mask);

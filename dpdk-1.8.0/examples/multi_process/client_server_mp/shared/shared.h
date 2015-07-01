@@ -12,9 +12,10 @@
 #include <stdio.h>
 
 //#define DEBUG
-#define INTERRUPT_FIFO
+//#define INTERRUPT_FIFO
 //#define INTERRUPT_SEM
-#define DPDK_FLAG
+//#define DPDK_FLAG
+#define CLIENT_STAT
 
 #endif
 
