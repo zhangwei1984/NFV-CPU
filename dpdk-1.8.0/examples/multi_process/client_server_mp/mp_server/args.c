@@ -59,7 +59,7 @@ static void
 usage(void)
 {
 	printf(
-	    "%s [EAL options] -- -p PORTMASK -n NUM_CLIENTS [-s NUM_SOCKETS]\n"
+	    "%s [EAL options] -- -p PORTMASK -n NUM_CLIENTS -r PKTS_PERCENT [-s NUM_SOCKETS]\n"
 	    " -p PORTMASK: hexadecimal bitmask of ports to use\n"
 	    " -n NUM_CLIENTS: number of client processes to use\n"
 	    " -r PKTS_PERCENT: packets percent dispatching to even clients\n"
