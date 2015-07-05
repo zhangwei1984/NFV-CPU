@@ -111,7 +111,7 @@ instant_stat_print(__attribute((unused)) void*dummy)
 {
 	uint64_t prev_tsc, cur_tsc;
         double period_time;
-        uint64_t pkt_rx_rate, pkt_rx_drop_rate;
+        uint64_t pkt_rx_rate, pkt_rx_drop_rate, pkt_rx_nic_rate;
 	int i;
 	
         prev_tsc = rte_rdtsc();
@@ -124,15 +124,16 @@ instant_stat_print(__attribute((unused)) void*dummy)
 			for(i = 0; i < num_clients; i++) {
 				pkt_rx_rate = (clients[i].stats.rx - clients[i].stats.prev_rx) / period_time;
 				pkt_rx_drop_rate = (clients[i].stats.rx_drop - clients[i].stats.prev_rx_drop) / period_time;
+				pkt_rx_nic_rate = (clients[i].stats.rx_nic - clients[i].stats.prev_rx_nic) / period_time;
 				
-                        	printf("pkt_rx_rate=%"PRIu64", pkt_rx_drop_rate=%"PRIu64"\n",
-					pkt_rx_rate, pkt_rx_drop_rate);
+                        	printf("pkt_rx_rate=%"PRIu64", pkt_rx_drop_rate=%"PRIu64", pkt_rx_nic_rate=%"PRIu64"\n",
+					pkt_rx_rate, pkt_rx_drop_rate, pkt_rx_nic_rate);
 				
 			}
                         prev_tsc = cur_tsc;
                         clients[i].stats.prev_rx = clients[i].stats.rx;
                         clients[i].stats.prev_rx_drop = clients[i].stats.rx_drop;
-
+                        clients[i].stats.prev_rx_nic = clients[i].stats.rx_nic;
                 }
         }
         return 0;	
@@ -261,8 +262,12 @@ clear_stats(void)
 	unsigned i;
 
 	for (i = 0; i < num_clients; i++) {
-		clients[i].stats.rx = clients[i].stats.rx_drop = 0;
-		clients[i].stats.prev_rx = clients[i].stats.prev_rx_drop = 0;
+		clients[i].stats.rx = 0;
+		clients[i].stats.prev_rx = 0;
+		clients[i].stats.rx_drop = 0;
+		clients[i].stats.prev_rx_drop = 0;
+		clients[i].stats.rx_nic = 0;
+		clients[i].stats.prev_rx_nic = 0;
 	}
 }
 
@@ -389,6 +394,7 @@ process_packets(uint32_t port_num __rte_unused,
 	
 		if (percent < DISPATCH_PERCENT) {
 			enqueue_rx_packet(client_even, pkts[i]);
+			clients[client_even].stats.rx_nic++;
 			client_even += 2;
 			if (client_even >= num_clients) {
 				client_even = 0;
@@ -398,6 +404,7 @@ process_packets(uint32_t port_num __rte_unused,
 		else {
 			//if only have one client, PERCENT must be 100%. Or else here will be a bug
 			enqueue_rx_packet(client_odd, pkts[i]);
+			clients[client_odd].stats.rx_nic++;
 			client_odd += 2;
 			if (client_odd >= num_clients) {
 				client_odd = 1;

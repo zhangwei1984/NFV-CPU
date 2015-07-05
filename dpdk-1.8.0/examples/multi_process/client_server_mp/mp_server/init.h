@@ -57,6 +57,8 @@ struct client {
 		volatile uint64_t rx_drop;
 		volatile uint64_t prev_rx;
 		volatile uint64_t prev_rx_drop;
+		volatile uint64_t rx_nic;
+		volatile uint64_t prev_rx_nic;
 	} stats;
 
 	#ifdef INTERRUPT_FIFO
