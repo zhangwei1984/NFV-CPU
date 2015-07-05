@@ -93,9 +93,11 @@ static volatile struct tx_stats *tx_stats;
 
 static volatile uint64_t pkt_count = 0;
 static volatile uint64_t msg_count = 0;
+static volatile uint64_t bad_wakeup_count = 0;
+static volatile uint64_t bad_batch_count = 0;
 
 #ifdef CLIENT_STAT
-#define TIMER_SECOND 1600000000ULL
+#define TIMER_SECOND 2670000000ULL
 #define SLEEP_TIME 1
 static uint64_t  timer_period = SLEEP_TIME * TIMER_SECOND; 
 
@@ -106,8 +108,10 @@ stat_print(__attribute__((unused)) void *dummy)
 	prev_tsc = rte_rdtsc();
 	uint64_t prev_pkt_count = pkt_count;
 	uint64_t prev_msg_count = msg_count;
+	uint64_t prev_bad_wakeup_count = bad_wakeup_count;
+	uint64_t prev_bad_batch_count = bad_batch_count;
 	double period_time;
-	uint64_t pkt_rate, msg_rate;
+	uint64_t pkt_rate, msg_rate, bad_wakeup_rate, bad_batch_rate;
 	
 
 	while (1) {
@@ -118,12 +122,15 @@ stat_print(__attribute__((unused)) void *dummy)
 			period_time = (cur_tsc - prev_tsc) / (double)TIMER_SECOND; 
 			pkt_rate = (pkt_count - prev_pkt_count) / period_time;
 			msg_rate = (msg_count - prev_msg_count) / period_time;
-			printf("pkt_count=%"PRIu64", prev_pkt_count=%"PRIu64", msg_count=%"PRIu64", prev_msg_count=%"PRIu64"\n", 
-				pkt_count, prev_pkt_count, msg_count, prev_msg_count);
-			printf("pkt_rate=%"PRIu64", msg_rate=%"PRIu64", period_time=%f\n", pkt_rate, msg_rate, period_time);
+			bad_wakeup_rate = (bad_wakeup_count - prev_bad_wakeup_count) / period_time;
+			bad_batch_rate = (bad_batch_count - prev_bad_batch_count) / period_time;
+			printf("pkt_rate=%"PRIu64", msg_rate=%"PRIu64", bad_wakeup_rate=%"PRIu64", bad_batch_rate=%"PRIu64", period_time=%f\n", 
+				pkt_rate, msg_rate, bad_wakeup_rate, bad_batch_rate, period_time);
 			prev_tsc = cur_tsc;	
 			prev_pkt_count = pkt_count;
 			prev_msg_count = msg_count;
+			prev_bad_wakeup_count = bad_wakeup_count;
+			prev_bad_batch_count = bad_batch_count;
 
 		}
 	}
@@ -465,6 +472,9 @@ main(int argc, char *argv[])
 				rx_pkts = (uint16_t)RTE_MIN(rte_ring_count(rx_ring), PKT_READ_SIZE);
 		
 			pkt_count += rx_pkts;
+			if (rx_pkts < PKT_READ_SIZE) {
+				bad_batch_count++;
+			}
 				
 			if (unlikely(rx_pkts == 0)){
 				if (need_flush)
@@ -476,6 +486,9 @@ main(int argc, char *argv[])
 							drop_packets(ports->id[port]);
 						}
 					}
+				else {
+					bad_wakeup_count++;
+				}
 				need_flush = 0;
 				break;
 			}

@@ -69,6 +69,7 @@
 #include <rte_malloc.h>
 #include <rte_fbk_hash.h>
 #include <rte_string_fns.h>
+#include <rte_cycles.h>
 
 #include "common.h"
 #include "args.h"
@@ -78,8 +79,8 @@
 void signal_handler(int sig, siginfo_t *info, void *secret);
 #endif
 
-#define DISPATCH_PERCENT 100
-#define WAKEUP_THRESHOLD 1
+#define DISPATCH_PERCENT 99
+#define WAKEUP_THRESHOLD 32
 //#define WAKEUP_PERCENT	
 
 /*
@@ -99,6 +100,44 @@ struct client_rx_buf {
 
 /* One buffer per client rx queue - dynamically allocate array */
 static struct client_rx_buf *cl_rx_buf;
+
+#ifdef SERVER_STAT
+#define TIMER_SECOND 2670000000ULL
+#define SLEEP_TIME 1
+static uint64_t  timer_period = SLEEP_TIME * TIMER_SECOND;
+
+static int 
+instant_stat_print(__attribute((unused)) void*dummy)
+{
+	uint64_t prev_tsc, cur_tsc;
+        double period_time;
+        uint64_t pkt_rx_rate, pkt_rx_drop_rate;
+	int i;
+	
+        prev_tsc = rte_rdtsc();
+	while (1) {
+                sleep(SLEEP_TIME);
+
+                cur_tsc = rte_rdtsc();
+                if (cur_tsc - prev_tsc >= timer_period){
+                        period_time = (cur_tsc - prev_tsc) / (double)TIMER_SECOND;
+			for(i = 0; i < num_clients; i++) {
+				pkt_rx_rate = (clients[i].stats.rx - clients[i].stats.prev_rx) / period_time;
+				pkt_rx_drop_rate = (clients[i].stats.rx_drop - clients[i].stats.prev_rx_drop) / period_time;
+				
+                        	printf("pkt_rx_rate=%"PRIu64", pkt_rx_drop_rate=%"PRIu64"\n",
+					pkt_rx_rate, pkt_rx_drop_rate);
+				
+			}
+                        prev_tsc = cur_tsc;
+                        clients[i].stats.prev_rx = clients[i].stats.rx;
+                        clients[i].stats.prev_rx_drop = clients[i].stats.rx_drop;
+
+                }
+        }
+        return 0;	
+}
+#else
 
 static const char *
 get_printable_mac_addr(uint8_t port)
@@ -183,6 +222,7 @@ do_stats_display(void)
 	printf("\n");
 }
 
+
 /*
  * The function called from each non-master lcore used by the process.
  * The test_and_set function is used to randomly pick a single lcore on which
@@ -209,6 +249,7 @@ sleep_lcore(__attribute__((unused)) void *dummy)
 	}
 	return 0;
 }
+#endif
 
 /*
  * Function to set all the client statistic values to zero.
@@ -219,8 +260,10 @@ clear_stats(void)
 {
 	unsigned i;
 
-	for (i = 0; i < num_clients; i++)
+	for (i = 0; i < num_clients; i++) {
 		clients[i].stats.rx = clients[i].stats.rx_drop = 0;
+		clients[i].stats.prev_rx = clients[i].stats.prev_rx_drop = 0;
+	}
 }
 
 /*
@@ -243,8 +286,9 @@ flush_rx_queue(uint16_t client)
 			rte_pktmbuf_free(cl_rx_buf[client].buffer[j]);
 		cl->stats.rx_drop += cl_rx_buf[client].count;
 	}
-	else
+	else {
 		cl->stats.rx += cl_rx_buf[client].count;
+	}
 
 	cl_rx_buf[client].count = 0;
 }
@@ -449,8 +493,15 @@ main(int argc, char *argv[])
 	/* clear statistics */
 	clear_stats();
 
+	#ifdef SERVER_STAT
+	unsigned cur_lcore = rte_lcore_id();
+	unsigned instant_stat_lcore = rte_get_next_lcore(cur_lcore, 1, 1);
+        printf("cur_lcore=%u, instant_stat_lcore=%u\n", cur_lcore, instant_stat_lcore);
+        rte_eal_remote_launch(instant_stat_print, NULL, instant_stat_lcore);
+	#else
 	/* put all other cores to sleep bar master */
 	rte_eal_mp_remote_launch(sleep_lcore, NULL, SKIP_MASTER);
+	#endif
 
 	do_packet_forwarding();
 	return 0;

@@ -16,6 +16,7 @@
 //#define INTERRUPT_SEM
 //#define DPDK_FLAG
 #define CLIENT_STAT
+#define SERVER_STAT
 
 #endif
 
