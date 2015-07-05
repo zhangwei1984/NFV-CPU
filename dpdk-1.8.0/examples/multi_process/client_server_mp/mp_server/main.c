@@ -101,45 +101,6 @@ struct client_rx_buf {
 /* One buffer per client rx queue - dynamically allocate array */
 static struct client_rx_buf *cl_rx_buf;
 
-#ifdef SERVER_STAT
-#define TIMER_SECOND 2670000000ULL
-#define SLEEP_TIME 1
-static uint64_t  timer_period = SLEEP_TIME * TIMER_SECOND;
-
-static int 
-instant_stat_print(__attribute((unused)) void*dummy)
-{
-	uint64_t prev_tsc, cur_tsc;
-        double period_time;
-        uint64_t pkt_rx_rate, pkt_rx_drop_rate, pkt_rx_nic_rate;
-	int i;
-	
-        prev_tsc = rte_rdtsc();
-	while (1) {
-                sleep(SLEEP_TIME);
-
-                cur_tsc = rte_rdtsc();
-                if (cur_tsc - prev_tsc >= timer_period){
-                        period_time = (cur_tsc - prev_tsc) / (double)TIMER_SECOND;
-			for(i = 0; i < num_clients; i++) {
-				pkt_rx_rate = (clients[i].stats.rx - clients[i].stats.prev_rx) / period_time;
-				pkt_rx_drop_rate = (clients[i].stats.rx_drop - clients[i].stats.prev_rx_drop) / period_time;
-				pkt_rx_nic_rate = (clients[i].stats.rx_nic - clients[i].stats.prev_rx_nic) / period_time;
-				
-                        	printf("pkt_rx_rate=%"PRIu64", pkt_rx_drop_rate=%"PRIu64", pkt_rx_nic_rate=%"PRIu64"\n",
-					pkt_rx_rate, pkt_rx_drop_rate, pkt_rx_nic_rate);
-				
-			}
-                        prev_tsc = cur_tsc;
-                        clients[i].stats.prev_rx = clients[i].stats.rx;
-                        clients[i].stats.prev_rx_drop = clients[i].stats.rx_drop;
-                        clients[i].stats.prev_rx_nic = clients[i].stats.rx_nic;
-                }
-        }
-        return 0;	
-}
-#else
-
 static const char *
 get_printable_mac_addr(uint8_t port)
 {
@@ -170,8 +131,10 @@ static void
 do_stats_display(void)
 {
 	unsigned i, j;
+	#ifndef SERVER_STAT
 	const char clr[] = { 27, '[', '2', 'J', '\0' };
 	const char topLeft[] = { 27, '[', '1', ';', '1', 'H','\0' };
+	#endif
 	uint64_t port_tx[RTE_MAX_ETHPORTS], port_tx_drop[RTE_MAX_ETHPORTS];
 	uint64_t client_tx[MAX_CLIENTS], client_tx_drop[MAX_CLIENTS];
 
@@ -195,7 +158,9 @@ do_stats_display(void)
 	}
 
 	/* Clear screen and move to top left */
+        #ifndef SERVER_STAT
 	printf("%s%s", clr, topLeft);
+	#endif
 
 	printf("PORTS\n");
 	printf("-----\n");
@@ -224,6 +189,45 @@ do_stats_display(void)
 }
 
 
+#ifdef SERVER_STAT
+#define TIMER_SECOND 2670000000ULL
+#define SLEEP_TIME 1
+static uint64_t  timer_period = SLEEP_TIME * TIMER_SECOND;
+
+static int 
+instant_stat_print(__attribute((unused)) void*dummy)
+{
+	uint64_t prev_tsc, cur_tsc;
+        double period_time;
+        uint64_t pkt_rx_rate, pkt_rx_drop_rate, pkt_rx_nic_rate;
+	int i;
+	
+        prev_tsc = rte_rdtsc();
+	while (1) {
+                sleep(SLEEP_TIME);
+
+                cur_tsc = rte_rdtsc();
+                if (cur_tsc - prev_tsc >= timer_period){
+                        period_time = (cur_tsc - prev_tsc) / (double)TIMER_SECOND;
+			for(i = 0; i < num_clients; i++) {
+				pkt_rx_rate = (clients[i].stats.rx - clients[i].stats.prev_rx) / period_time;
+				pkt_rx_drop_rate = (clients[i].stats.rx_drop - clients[i].stats.prev_rx_drop) / period_time;
+				pkt_rx_nic_rate = (clients[i].stats.rx_nic - clients[i].stats.prev_rx_nic) / period_time;
+				
+                        	printf("client_id=%d, pkt_rx_rate=%"PRIu64", pkt_rx_drop_rate=%"PRIu64", pkt_rx_nic_rate=%"PRIu64"\n", 
+					i, pkt_rx_rate, pkt_rx_drop_rate, pkt_rx_nic_rate);
+				
+                        	clients[i].stats.prev_rx = clients[i].stats.rx;
+                        	clients[i].stats.prev_rx_drop = clients[i].stats.rx_drop;
+                        	clients[i].stats.prev_rx_nic = clients[i].stats.rx_nic;
+			}
+			do_stats_display();
+                        prev_tsc = cur_tsc;
+                }
+        }
+        return 0;	
+}
+#else
 /*
  * The function called from each non-master lcore used by the process.
  * The test_and_set function is used to randomly pick a single lcore on which
