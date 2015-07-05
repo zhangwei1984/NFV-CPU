@@ -37,6 +37,7 @@
 #include <getopt.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include <rte_memory.h>
 #include <rte_string_fns.h>
@@ -47,6 +48,7 @@
 
 /* global var for number of clients - extern in header */
 uint8_t num_clients;
+uint8_t pkts_percent;
 
 static const char *progname;
 
@@ -60,6 +62,7 @@ usage(void)
 	    "%s [EAL options] -- -p PORTMASK -n NUM_CLIENTS [-s NUM_SOCKETS]\n"
 	    " -p PORTMASK: hexadecimal bitmask of ports to use\n"
 	    " -n NUM_CLIENTS: number of client processes to use\n"
+	    " -r PKTS_PERCENT: packets percent dispatching to even clients\n"
 	    , progname);
 }
 
@@ -122,6 +125,27 @@ parse_num_clients(const char *clients)
 }
 
 /**
+ * Take the percent of packets  parameter passed to the app, which are sent to even clients
+ * and convert to a number to store in the pkts_percent variable
+ */
+static int
+parse_pkts_percent(const char *percent)
+{
+        char *end = NULL;
+        unsigned long temp;
+
+        if (percent == NULL || *percent == '\0')
+                return -1;
+
+        temp = strtoul(percent, &end, 10);
+        if (end == NULL || *end != '\0' || temp == 0)
+                return -1;
+
+        pkts_percent = (uint8_t)temp;
+        return 0;
+}
+
+/**
  * The application specific arguments follow the DPDK-specific
  * arguments which are stripped by the DPDK init. This function
  * processes these application arguments, printing usage info
@@ -137,7 +161,7 @@ parse_app_args(uint8_t max_ports, int argc, char *argv[])
 	};
 	progname = argv[0];
 
-	while ((opt = getopt_long(argc, argvopt, "n:p:", lgopts,
+	while ((opt = getopt_long(argc, argvopt, "n:p:r:", lgopts,
 		&option_index)) != EOF){
 		switch (opt){
 			case 'p':
@@ -152,6 +176,15 @@ parse_app_args(uint8_t max_ports, int argc, char *argv[])
 					return -1;
 				}
 				break;
+			case 'r':
+				if (parse_pkts_percent(optarg) != 0){
+					usage();
+					return -1;
+				}
+				printf("pkts_percent=%"PRIu8"\n", pkts_percent);
+				//printf("pkts_percent=%u\n", pkts_percent);
+				break;
+				
 			default:
 				printf("ERROR: Unknown option '%c'\n", opt);
 				usage();

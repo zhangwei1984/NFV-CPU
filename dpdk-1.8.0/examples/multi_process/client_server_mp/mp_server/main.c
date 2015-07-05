@@ -79,7 +79,7 @@
 void signal_handler(int sig, siginfo_t *info, void *secret);
 #endif
 
-#define DISPATCH_PERCENT 99
+extern uint8_t pkts_percent;
 #define WAKEUP_THRESHOLD 32
 //#define WAKEUP_PERCENT	
 
@@ -396,7 +396,7 @@ process_packets(uint32_t port_num __rte_unused,
 	for (i = 0; i < rx_count; i++) {
 		percent = rand() % 100;
 	
-		if (percent < DISPATCH_PERCENT) {
+		if (percent < pkts_percent) {
 			enqueue_rx_packet(client_even, pkts[i]);
 			clients[client_even].stats.rx_nic++;
 			client_even += 2;
