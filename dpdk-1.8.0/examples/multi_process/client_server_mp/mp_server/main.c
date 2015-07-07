@@ -38,7 +38,6 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <inttypes.h>
-#include <inttypes.h>
 #include <sys/queue.h>
 #include <errno.h>
 #include <netinet/ip.h>
@@ -194,6 +193,45 @@ do_stats_display(void)
 #define SLEEP_TIME 1
 static uint64_t  timer_period = SLEEP_TIME * TIMER_SECOND;
 
+static struct rte_eth_stats *port_stats;
+static struct rte_eth_stats *port_prev_stats;
+
+
+static int 
+get_port_stats_rate(double period_time)
+{
+	int i;
+	uint64_t port_rx_rate, port_rx_err_rate, port_rx_nombuf_rate, port_tx_rate, port_tx_err_rate;
+
+	for (i = 0; i < ports->num_ports; i++){
+		rte_eth_stats_get(ports->id[i], &port_stats[i]);	
+                printf("Port:%"PRIu8", rx:%"PRIu64", rx_err:%"PRIu64", "
+			"rx_nombuf:%"PRIu64", tx:%"PRIu64", tx_err:%"PRIu64"\n",
+			ports->id[i], port_stats[i].ipackets, port_stats[i].ierrors, 
+			port_stats[i].rx_nombuf, port_stats[i].opackets, 
+			port_stats[i].oerrors);
+
+		port_rx_rate = (port_stats[i].ipackets - port_prev_stats[i].ipackets) / period_time;
+		port_rx_err_rate = (port_stats[i].ierrors - port_prev_stats[i].ierrors) / period_time;
+		port_rx_nombuf_rate = (port_stats[i].rx_nombuf - port_prev_stats[i].rx_nombuf) / period_time;
+		port_tx_rate = (port_stats[i].opackets - port_prev_stats[i].opackets) / period_time;
+		port_tx_err_rate = (port_stats[i].oerrors - port_prev_stats[i].oerrors) / period_time;
+
+		printf("Port:%"PRIu8", rx_rate:%"PRIu64", rx_err_rate:%"PRIu64","
+			"rx_nombuf_rate:%"PRIu64", tx_rate:%"PRIu64", tx_err_rate:%"PRIu64"\n",
+			ports->id[i], port_rx_rate, port_rx_err_rate, 
+			port_rx_nombuf_rate, port_tx_rate, port_tx_err_rate);
+
+		port_prev_stats[i].ipackets = port_stats[i].ipackets;
+                port_prev_stats[i].ierrors = port_stats[i].ierrors;
+                port_prev_stats[i].rx_nombuf = port_stats[i].rx_nombuf;
+                port_prev_stats[i].opackets = port_stats[i].opackets;
+                port_prev_stats[i].oerrors = port_stats[i].oerrors;
+        }
+
+	return 0;
+}
+
 static int 
 instant_stat_print(__attribute((unused)) void*dummy)
 {
@@ -221,6 +259,7 @@ instant_stat_print(__attribute((unused)) void*dummy)
                         	clients[i].stats.prev_rx_drop = clients[i].stats.rx_drop;
                         	clients[i].stats.prev_rx_nic = clients[i].stats.rx_nic;
 			}
+			get_port_stats_rate(period_time);
 			do_stats_display();
                         prev_tsc = cur_tsc;
                 }
@@ -358,6 +397,9 @@ void signal_handler(int sig, siginfo_t *info, void *secret)
 			sem_unlink(clients[i].sem_name);
 		}	
 		#endif
+
+		rte_free(port_stats);
+		rte_free(port_prev_stats);
 	}
 	
 	exit(1);
@@ -500,6 +542,19 @@ main(int argc, char *argv[])
 	RTE_LOG(INFO, APP, "Finished Process Init.\n");
 
 	cl_rx_buf = calloc(num_clients, sizeof(cl_rx_buf[0]));
+
+	//allocate port stat memory
+	port_stats = rte_zmalloc("port_stats", sizeof(struct rte_eth_stats) * ports->num_ports, 0);
+	if(port_stats == NULL) {
+		fprintf(stderr, "can not allocate port_stats memory\n");
+		exit(1);
+	}
+
+	port_prev_stats = rte_zmalloc("port_prev_stats", sizeof(struct rte_eth_stats) * ports->num_ports, 0);
+	if(port_prev_stats == NULL) {
+		fprintf(stderr, "can not allocate port_prev_stats memory\n");
+		exit(1);
+	}
 
 	/* clear statistics */
 	clear_stats();

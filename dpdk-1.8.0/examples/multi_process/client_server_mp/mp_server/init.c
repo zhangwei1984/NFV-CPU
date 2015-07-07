@@ -72,8 +72,10 @@
 #include "args.h"
 #include "init.h"
 
-#define MBUFS_PER_CLIENT 1536
-#define MBUFS_PER_PORT 1536
+//#define MBUFS_PER_CLIENT 1536
+//#define MBUFS_PER_PORT 1536
+#define MBUFS_PER_CLIENT 30720
+#define MBUFS_PER_PORT  30720
 #define MBUF_CACHE_SIZE 512
 #define MBUF_OVERHEAD (sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define RX_MBUF_DATA_SIZE 2048
